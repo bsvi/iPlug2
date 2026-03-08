@@ -564,7 +564,28 @@ int main(int argc, char** argv)
   CreateDialog(gHINSTANCE, MAKEINTRESOURCE(IDD_DIALOG_MAIN), NULL, IPlugAPPHost::MainDlgProc);
 
   if (gHWND && menu)
+  {
     SetMenu(gHWND, menu);
+    // SetMenu changes the non-client area (adds menubar_height) but
+    // ClientResize already ran in WM_INITDIALOG without the menu.
+    // Force the client area to match the plugin editor size.
+    IPlugAPPHost* pHost = IPlugAPPHost::sInstance.get();
+    if (pHost && pHost->GetPlug())
+    {
+      int w = pHost->GetPlug()->GetEditorWidth();
+      int h = pHost->GetPlug()->GetEditorHeight();
+      RECT rcClient, rcWindow;
+      GetClientRect(gHWND, &rcClient);
+      GetWindowRect(gHWND, &rcWindow);
+      int dx = (rcWindow.right - rcWindow.left) - rcClient.right;
+      int dy = (rcWindow.bottom - rcWindow.top) - rcClient.bottom;
+      int screenW = GetSystemMetrics(SM_CXSCREEN);
+      int screenH = GetSystemMetrics(SM_CYSCREEN);
+      SetWindowPos(gHWND, 0,
+                   (screenW - w) / 2, (screenH - h) / 2,
+                   w + dx, h + dy, SWP_NOZORDER);
+    }
+  }
 
   while (gHWND && !gHWND->m_hashaddestroy)
   {

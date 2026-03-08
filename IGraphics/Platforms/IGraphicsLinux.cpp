@@ -185,12 +185,20 @@ struct GTK3
   using fn_widget_set_sensitive     = void  (*)(void*, int);
   using fn_widget_show_all          = void  (*)(void*);
   using fn_menu_popup_at_pointer    = void  (*)(void*, void*);
+  // Deprecated but reliable: works without a GDK event, unlike
+  // gtk_menu_popup_at_pointer which requires a valid trigger event
+  // on compositing window managers (Mutter, KWin).
+  using fn_menu_popup               = void  (*)(void*, void*, void*,
+                                                void*, void*, unsigned, unsigned);
   using fn_main                     = void  (*)();
   using fn_main_quit                = void  (*)();
   // g_signal_connect is a macro over g_signal_connect_data in GObject
   using fn_signal_connect_data      = unsigned long (*)(void*, const char*,
                                                         void*, void*,
                                                         void*, int);
+  // Window management (for dialog parenting)
+  using fn_window_set_modal         = void  (*)(void*, int);
+  using fn_window_present           = void  (*)(void*);
   // Entry dialog
   using fn_entry_new                = void* (*)();
   using fn_entry_set_text           = void  (*)(void*, const char*);
@@ -230,6 +238,7 @@ struct GTK3
   fn_widget_set_sensitive     widget_set_sensitive     = nullptr;
   fn_widget_show_all          widget_show_all          = nullptr;
   fn_menu_popup_at_pointer    menu_popup_at_pointer    = nullptr;
+  fn_menu_popup               menu_popup               = nullptr;
   fn_main                     main                     = nullptr;
   fn_main_quit                main_quit                = nullptr;
   fn_signal_connect_data      signal_connect_data      = nullptr;
@@ -237,6 +246,8 @@ struct GTK3
   fn_entry_set_text           entry_set_text           = nullptr;
   fn_entry_get_text           entry_get_text           = nullptr;
   fn_entry_set_max_length     entry_set_max_length     = nullptr;
+  fn_window_set_modal         window_set_modal         = nullptr;
+  fn_window_present           window_present           = nullptr;
   fn_dialog_new_with_buttons  dialog_new_with_buttons  = nullptr;
   fn_dialog_get_content_area  dialog_get_content_area  = nullptr;
   fn_dialog_response          dialog_response          = nullptr;
@@ -286,6 +297,7 @@ static GTK3* LoadGTK3()
   LOAD_GTK_SYM(gtk, widget_set_sensitive);
   LOAD_GTK_SYM(gtk, widget_show_all);
   LOAD_GTK_SYM(gtk, menu_popup_at_pointer);
+  LOAD_GTK_SYM(gtk, menu_popup);
   LOAD_GTK_SYM(gtk, main);
   LOAD_GTK_SYM(gtk, main_quit);
   // g_signal_connect_data is in libgobject, but GTK re-exports it
@@ -294,6 +306,8 @@ static GTK3* LoadGTK3()
   LOAD_GTK_SYM(gtk, entry_set_text);
   LOAD_GTK_SYM(gtk, entry_get_text);
   LOAD_GTK_SYM(gtk, entry_set_max_length);
+  LOAD_GTK_SYM(gtk, window_set_modal);
+  LOAD_GTK_SYM(gtk, window_present);
   LOAD_GTK_SYM(gtk, dialog_new_with_buttons);
   LOAD_GTK_SYM(gtk, dialog_get_content_area);
   LOAD_GTK_SYM(gtk, dialog_response);
@@ -321,6 +335,17 @@ static void GtkDrainEvents(GTK3* g)
   if (g->events_pending && g->main_iteration_do)
     while (g->events_pending())
       g->main_iteration_do(0 /* non-blocking */);
+}
+
+// Present a GTK dialog as modal so the WM grants it focus and input grabs.
+// Without this, file-chooser dropdowns and color-picker sub-dialogs fail
+// on compositing WMs (Mutter, KWin) because GTK can't acquire a GDK grab.
+static void GtkPresentDialog(GTK3* g, void* dialog)
+{
+  if (g->window_set_modal)
+    g->window_set_modal(dialog, 1);
+  if (g->window_present)
+    g->window_present(dialog);
 }
 
 // ---- Runtime fontconfig (optional — loaded via dlopen so plugins work without it) ----
@@ -787,6 +812,7 @@ EMsgBoxResult IGraphicsLinux::ShowMessageBox(const char* str, const char* title,
   void* dialog = g->message_dialog_new(nullptr, 0, gtkMsgType, gtkBtnType, "%s", str);
   if (title && g->window_set_title)
     g->window_set_title(dialog, title);
+  GtkPresentDialog(g, dialog);
 
   int resp = g->dialog_run(dialog);
   g->widget_destroy(dialog);
@@ -873,6 +899,7 @@ void IGraphicsLinux::PromptForFile(WDL_String& fileName, WDL_String& path,
   // For save dialogs, suggest filename
   if (isSave && fileName.GetLength() && g->file_chooser_set_current_name)
     g->file_chooser_set_current_name(dialog, fileName.Get());
+  GtkPresentDialog(g, dialog);
 
   WDL_String outFile, outPath;
   if (g->dialog_run(dialog) == kGTK_RESPONSE_OK)
@@ -915,6 +942,7 @@ void IGraphicsLinux::PromptForDirectory(WDL_String& dir,
 
   if (dir.GetLength() && g->file_chooser_set_current_folder)
     g->file_chooser_set_current_folder(dialog, dir.Get());
+  GtkPresentDialog(g, dialog);
 
   WDL_String outDir;
   if (g->dialog_run(dialog) == kGTK_RESPONSE_OK)
@@ -949,6 +977,7 @@ bool IGraphicsLinux::PromptForColor(IColor& color, const char* str,
                      color.B / 255.0, color.A / 255.0 };
     g->color_chooser_set_rgba(dialog, &rgba);
   }
+  GtkPresentDialog(g, dialog);
 
   const bool accepted = (g->dialog_run(dialog) == kGTK_RESPONSE_OK);
 
@@ -1146,7 +1175,13 @@ IPopupMenu* IGraphicsLinux::CreatePlatformPopupMenu(IPopupMenu& menu, const IREC
   }
 
   // Pop up the menu at the current pointer position.
-  if (g->menu_popup_at_pointer)
+  // Prefer the deprecated gtk_menu_popup: it works without a GDK trigger
+  // event, which gtk_menu_popup_at_pointer requires.  On compositing WMs
+  // (Mutter, KWin) a NULL event causes an assertion failure and freeze.
+  if (g->menu_popup)
+    g->menu_popup(gtkMenu, nullptr, nullptr, nullptr, nullptr, 0,
+                  0 /* GDK_CURRENT_TIME */);
+  else if (g->menu_popup_at_pointer)
     g->menu_popup_at_pointer(gtkMenu, nullptr);
 
   // Run a nested GTK main loop — blocks until the menu closes.
@@ -1214,6 +1249,7 @@ void IGraphicsLinux::CreatePlatformTextEntry(int paramIdx, const IText& text,
 
   if (g->widget_show_all)
     g->widget_show_all(dialog);
+  GtkPresentDialog(g, dialog);
 
   int response = g->dialog_run(dialog);
 
