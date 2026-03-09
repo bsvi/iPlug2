@@ -20,6 +20,12 @@
 #ifdef OS_LINUX
 #include <alsa/asoundlib.h>
 #include <gdk/gdkx.h>  // GDK_WINDOW_XID
+#ifndef NO_IGRAPHICS
+  #if defined(OS_LINUX)
+    // include directly; build adds IGraphics/Platforms to include path
+    #include "IGraphicsLinux.h" // for LinuxOpenWindowHints
+  #endif
+#endif
 #endif
 
 #include "IPlugLogger.h"
@@ -86,7 +92,11 @@ bool IPlugAPPHost::OpenWindow(HWND pParent)
   // pParent is a SWELL HWND (heap pointer, not an X11 Window).
   // Extract the underlying X11 window so IGraphicsLinux can embed into it.
   void* x11Parent = nullptr;
-  bool hasClientOffset = false;
+#ifndef NO_IGRAPHICS
+  igraphics::LinuxOpenWindowHints openHints;
+  bool hasOpenHints = false;
+#endif
+
   if (pParent)
   {
     GdkWindow* gdkWnd = static_cast<GdkWindow*>(SWELL_GetOSWindow(pParent, "GdkWindow"));
@@ -100,30 +110,29 @@ bool IPlugAPPHost::OpenWindow(HWND pParent)
       int clientOffsetY = GetMenu(pParent) ? GetSystemMetrics(SM_CYMENU) : 0;
       clientOffsetY = std::max(0, clientOffsetY);
 
-      char offsetBuf[16];
-      snprintf(offsetBuf, sizeof(offsetBuf), "%d", clientOffsetX);
-      setenv("IPLUG2_PARENT_CLIENT_X", offsetBuf, 1 /* overwrite */);
-      snprintf(offsetBuf, sizeof(offsetBuf), "%d", clientOffsetY);
-      setenv("IPLUG2_PARENT_CLIENT_Y", offsetBuf, 1 /* overwrite */);
-      hasClientOffset = true;
-
-      // Export the GDK scale factor so IGraphicsLinux can create its X11 window
-      // at the correct physical-pixel size for HiDPI (Xwayland 200% etc.).
-      int scale = gdk_window_get_scale_factor(gdkWnd);
-      if (scale > 1)
-      {
-        char buf[8];
-        snprintf(buf, sizeof(buf), "%d", scale);
-        setenv("IPLUG2_SCREEN_SCALE", buf, 1 /* overwrite */);
-      }
+      // Pass extra Linux embedding info directly to IGraphicsLinux::OpenWindow.
+      // This avoids process-wide env-var handoff.
+#ifndef NO_IGRAPHICS
+      openHints.mParentClientX = clientOffsetX;
+      openHints.mParentClientY = clientOffsetY;
+      openHints.mScreenScale = std::max(1, gdk_window_get_scale_factor(gdkWnd));
+      hasOpenHints = true;
+#endif
     }
   }
+
+#ifndef NO_IGRAPHICS
+  if (hasOpenHints)
+    igraphics::SetLinuxOpenWindowHints(&openHints);
+#endif
+
   bool opened = mIPlug->OpenWindow(x11Parent) != nullptr;
-  if (hasClientOffset)
-  {
-    unsetenv("IPLUG2_PARENT_CLIENT_X");
-    unsetenv("IPLUG2_PARENT_CLIENT_Y");
-  }
+
+#ifndef NO_IGRAPHICS
+  if (hasOpenHints)
+    igraphics::SetLinuxOpenWindowHints(nullptr);
+#endif
+
   return opened;
 #else
   return mIPlug->OpenWindow(pParent) != nullptr;

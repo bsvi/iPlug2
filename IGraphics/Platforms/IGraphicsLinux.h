@@ -65,6 +65,23 @@
 BEGIN_IPLUG_NAMESPACE
 BEGIN_IGRAPHICS_NAMESPACE
 
+
+// Linux-specific data passed to IGraphicsLinux::OpenWindow(). The standalone
+// APP host uses this instead of environment variables (see
+// IPlugAPPHost::OpenWindow).
+struct LinuxOpenWindowHints
+{
+  int mParentClientX = 0;
+  int mParentClientY = 0;
+  int mScreenScale = 1;
+};
+
+// Set or clear pending hints on the calling thread; the next
+// IGraphicsLinux::OpenWindow call will consume and clear them.
+void SetLinuxOpenWindowHints(const LinuxOpenWindowHints* pHints);
+bool ConsumeLinuxOpenWindowHints(LinuxOpenWindowHints& outHints);
+
+
 /** IGraphics platform class for Linux
 *   @ingroup PlatformClasses */
 class IGraphicsLinux final : public IGRAPHICS_DRAW_CLASS

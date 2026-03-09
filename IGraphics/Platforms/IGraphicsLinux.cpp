@@ -51,6 +51,36 @@ using namespace igraphics;
 // Timer interval in microseconds (60 fps = ~16667 us)
 static constexpr int TIMER_INTERVAL_US = 16667;
 
+// Pending OpenWindow hints are set by the Linux APP host and consumed by the
+// next OpenWindow call on the same thread.
+static thread_local bool sHasLinuxOpenWindowHints = false;
+static thread_local LinuxOpenWindowHints sLinuxOpenWindowHints;
+
+void iplug::igraphics::SetLinuxOpenWindowHints(const LinuxOpenWindowHints* pHints)
+{
+  if (pHints)
+  {
+    sLinuxOpenWindowHints = *pHints;
+    sHasLinuxOpenWindowHints = true;
+  }
+  else
+  {
+    sLinuxOpenWindowHints = {};
+    sHasLinuxOpenWindowHints = false;
+  }
+}
+
+bool iplug::igraphics::ConsumeLinuxOpenWindowHints(LinuxOpenWindowHints& outHints)
+{
+  if (!sHasLinuxOpenWindowHints)
+    return false;
+
+  outHints = sLinuxOpenWindowHints;
+  sLinuxOpenWindowHints = {};
+  sHasLinuxOpenWindowHints = false;
+  return true;
+}
+
 // ---- Font helpers -----------------------------------------------------------
 
 /** Loads a TTF font from a file path; GetFontData() reads the bytes on demand. */
@@ -434,6 +464,9 @@ static int sIgnoreX11Error(Display*, XErrorEvent*) { return 0; }
 
 void* IGraphicsLinux::OpenWindow(void* pParent)
 {
+  LinuxOpenWindowHints hints;
+  const bool hasHints = ConsumeLinuxOpenWindowHints(hints);
+
   mDisplay = XOpenDisplay(nullptr);
   if (!mDisplay)
     return nullptr;
@@ -441,9 +474,9 @@ void* IGraphicsLinux::OpenWindow(void* pParent)
   int screen = DefaultScreen(mDisplay);
   Window root = RootWindow(mDisplay, screen);
 
-  // Validate pParent is an actual X11 Window, not a SWELL generic HWND pointer.
-  // In standalone mode the APP host passes gHWND, which is a heap pointer —
-  // XGetWindowAttributes will fail for it and we fall back to root.
+  // Validate pParent is an actual X11 Window.
+  // Some wrappers may pass non-X11 parent handles; in that case validation
+  // fails and we fall back to creating a top-level window on the root.
   mParentWnd = root;
   if (pParent)
   {
@@ -456,17 +489,19 @@ void* IGraphicsLinux::OpenWindow(void* pParent)
       mParentWnd = (Window)(uintptr_t)pParent;
   }
 
-  // Detect HiDPI scale factor. The standalone APP sets IPLUG2_SCREEN_SCALE after
-  // querying gdk_window_get_scale_factor(). Plugin hosts may set GDK_SCALE.
+  // Detect HiDPI scale factor. The standalone APP host can provide explicit
+  // hints via SetLinuxOpenWindowHints(). Plugin hosts may still set GDK_SCALE.
   // Note: on Xwayland the X11 coordinate space uses physical pixels, not logical
   // pixels, so XDisplayWidth returns the logical (scaled-down) extent. Do NOT
   // compare physW against XDisplayWidth — it will always exceed the logical extent
-  // on HiDPI displays. Trust gdk_window_get_scale_factor instead.
+  // on HiDPI displays.
   {
     int gdkScale = 1;
-    const char* s = getenv("IPLUG2_SCREEN_SCALE");
-    if (!s) s = getenv("GDK_SCALE");
-    if (s) gdkScale = std::clamp(atoi(s), 1, 8);
+    if (hasHints)
+      gdkScale = std::clamp(hints.mScreenScale, 1, 8);
+    else if (const char* s = getenv("GDK_SCALE"))
+      gdkScale = std::clamp(atoi(s), 1, 8);
+
     if (gdkScale > 1)
       SetScreenScale(static_cast<float>(gdkScale));
     // SetScreenScale is safe here: mPlugWnd==0 so PlatformResize skips,
@@ -478,10 +513,11 @@ void* IGraphicsLinux::OpenWindow(void* pParent)
   if (mParentWnd != root)
   {
     // Standalone APP host may provide SWELL client-origin offsets for embedding.
-    const char* sx = getenv("IPLUG2_PARENT_CLIENT_X");
-    const char* sy = getenv("IPLUG2_PARENT_CLIENT_Y");
-    if (sx) childPosX = std::max(0, atoi(sx));
-    if (sy) childPosY = std::max(0, atoi(sy));
+    if (hasHints)
+    {
+      childPosX = std::max(0, hints.mParentClientX);
+      childPosY = std::max(0, hints.mParentClientY);
+    }
   }
 
 #ifdef IGRAPHICS_GL
