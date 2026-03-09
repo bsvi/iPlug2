@@ -474,9 +474,9 @@ void* IGraphicsLinux::OpenWindow(void* pParent)
   int screen = DefaultScreen(mDisplay);
   Window root = RootWindow(mDisplay, screen);
 
-  // Validate pParent is an actual X11 Window.
-  // Some wrappers may pass non-X11 parent handles; in that case validation
-  // fails and we fall back to creating a top-level window on the root.
+  // Validate pParent is an actual X11 Window, not a SWELL generic HWND pointer.
+  // In standalone mode the APP host passes gHWND, which is a heap pointer —
+  // XGetWindowAttributes will fail for it and we fall back to root.
   mParentWnd = root;
   if (pParent)
   {
