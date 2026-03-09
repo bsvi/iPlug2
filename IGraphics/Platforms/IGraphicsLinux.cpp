@@ -473,6 +473,17 @@ void* IGraphicsLinux::OpenWindow(void* pParent)
     // and mVG==nullptr so DrawResize skips.
   }
 
+  int childPosX = 0;
+  int childPosY = 0;
+  if (mParentWnd != root)
+  {
+    // Standalone APP host may provide SWELL client-origin offsets for embedding.
+    const char* sx = getenv("IPLUG2_PARENT_CLIENT_X");
+    const char* sy = getenv("IPLUG2_PARENT_CLIENT_Y");
+    if (sx) childPosX = std::max(0, atoi(sx));
+    if (sy) childPosY = std::max(0, atoi(sy));
+  }
+
 #ifdef IGRAPHICS_GL
   XVisualInfo* vi = CreateGLContext();
   if (!mGLContext)
@@ -498,7 +509,7 @@ void* IGraphicsLinux::OpenWindow(void* pParent)
 
   mPlugWnd = XCreateWindow(
     mDisplay, mParentWnd,
-    0, 0, physW, physH,
+    childPosX, childPosY, physW, physH,
     0, vi->depth, InputOutput, vi->visual,
     CWColormap | CWEventMask, &attrs
   );
@@ -518,7 +529,7 @@ void* IGraphicsLinux::OpenWindow(void* pParent)
 
   mPlugWnd = XCreateWindow(
     mDisplay, mParentWnd,
-    0, 0, physW, physH,
+    childPosX, childPosY, physW, physH,
     0, CopyFromParent, InputOutput, CopyFromParent,
     CWEventMask | CWBackPixel, &attrs
   );

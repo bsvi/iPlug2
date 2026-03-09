@@ -10,6 +10,8 @@
 
 #include "IPlugAPP_host.h"
 
+#include <algorithm>
+
 #ifdef OS_WIN
 #include <sys/stat.h>
 #include "win32_utf8.h"
@@ -84,12 +86,26 @@ bool IPlugAPPHost::OpenWindow(HWND pParent)
   // pParent is a SWELL HWND (heap pointer, not an X11 Window).
   // Extract the underlying X11 window so IGraphicsLinux can embed into it.
   void* x11Parent = nullptr;
+  bool hasClientOffset = false;
   if (pParent)
   {
     GdkWindow* gdkWnd = static_cast<GdkWindow*>(SWELL_GetOSWindow(pParent, "GdkWindow"));
     if (gdkWnd)
     {
       x11Parent = (void*)(uintptr_t)GDK_WINDOW_XID(gdkWnd);
+
+      // SWELL provides the top-level GdkWindow. For APP standalone we only need
+      // to offset by the emulated menubar height so embedded UI does not cover it.
+      int clientOffsetX = 0;
+      int clientOffsetY = GetMenu(pParent) ? GetSystemMetrics(SM_CYMENU) : 0;
+      clientOffsetY = std::max(0, clientOffsetY);
+
+      char offsetBuf[16];
+      snprintf(offsetBuf, sizeof(offsetBuf), "%d", clientOffsetX);
+      setenv("IPLUG2_PARENT_CLIENT_X", offsetBuf, 1 /* overwrite */);
+      snprintf(offsetBuf, sizeof(offsetBuf), "%d", clientOffsetY);
+      setenv("IPLUG2_PARENT_CLIENT_Y", offsetBuf, 1 /* overwrite */);
+      hasClientOffset = true;
 
       // Export the GDK scale factor so IGraphicsLinux can create its X11 window
       // at the correct physical-pixel size for HiDPI (Xwayland 200% etc.).
@@ -102,7 +118,13 @@ bool IPlugAPPHost::OpenWindow(HWND pParent)
       }
     }
   }
-  return mIPlug->OpenWindow(x11Parent) != nullptr;
+  bool opened = mIPlug->OpenWindow(x11Parent) != nullptr;
+  if (hasClientOffset)
+  {
+    unsetenv("IPLUG2_PARENT_CLIENT_X");
+    unsetenv("IPLUG2_PARENT_CLIENT_Y");
+  }
+  return opened;
 #else
   return mIPlug->OpenWindow(pParent) != nullptr;
 #endif

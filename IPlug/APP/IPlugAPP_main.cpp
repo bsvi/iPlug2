@@ -566,6 +566,7 @@ int main(int argc, char** argv)
   if (gHWND && menu)
   {
     SetMenu(gHWND, menu);
+    DrawMenuBar(gHWND);
     // SetMenu changes the non-client area (adds menubar_height) but
     // ClientResize already ran in WM_INITDIALOG without the menu.
     // Force the client area to match the plugin editor size.
