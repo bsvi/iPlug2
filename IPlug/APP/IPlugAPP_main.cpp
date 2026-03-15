@@ -569,21 +569,38 @@ int main(int argc, char** argv)
     DrawMenuBar(gHWND);
     // SetMenu changes the non-client area (adds menubar_height) but
     // ClientResize already ran in WM_INITDIALOG without the menu.
-    // Force the client area to match the plugin editor size.
+    // Force the client area to match the stored size and position if avalable
+    // or, default if not
     IPlugAPPHost* pHost = IPlugAPPHost::sInstance.get();
     if (pHost && pHost->GetPlug())
     {
-      int w = pHost->GetPlug()->GetEditorWidth();
-      int h = pHost->GetPlug()->GetEditorHeight();
+      int restoreX = 0;
+      int restoreY = 0;
+      int restoreW = 0;
+      int restoreH = 0;
+      const bool hasSavedBounds = pHost->GetMainWindowBounds(restoreX, restoreY, restoreW, restoreH);
+      const bool canRestoreSize = hasSavedBounds && pHost->GetPlug()->GetHostResizeEnabled();
+
+      int w = canRestoreSize ? restoreW : pHost->GetPlug()->GetEditorWidth();
+      int h = canRestoreSize ? restoreH : pHost->GetPlug()->GetEditorHeight();
       RECT rcClient, rcWindow;
       GetClientRect(gHWND, &rcClient);
       GetWindowRect(gHWND, &rcWindow);
       int dx = (rcWindow.right - rcWindow.left) - rcClient.right;
       int dy = (rcWindow.bottom - rcWindow.top) - rcClient.bottom;
-      int screenW = GetSystemMetrics(SM_CXSCREEN);
-      int screenH = GetSystemMetrics(SM_CYSCREEN);
+      int x = restoreX;
+      int y = restoreY;
+
+      if (!hasSavedBounds)
+      {
+        int screenW = GetSystemMetrics(SM_CXSCREEN);
+        int screenH = GetSystemMetrics(SM_CYSCREEN);
+        x = (screenW - w) / 2;
+        y = (screenH - h) / 2;
+      }
+
       SetWindowPos(gHWND, 0,
-                   (screenW - w) / 2, (screenH - h) / 2,
+                   x, y,
                    w + dx, h + dy, SWP_NOZORDER);
     }
   }

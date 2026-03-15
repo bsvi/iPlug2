@@ -199,6 +199,11 @@ public:
   bool Init();
   bool InitState();
   void UpdateINI();
+
+  /** Returns true if a previous app window position/size was stored. */
+  bool GetMainWindowBounds(int& x, int& y, int& clientW, int& clientH) const;
+  /** Captures the current app window position/client size for persistence. */
+  void SaveMainWindowBounds(HWND hWnd);
   
   /** Returns the name of the audio device with a given RTAudio device ID
    * @param deviceID The ID RTAudio has given the audio device
@@ -266,6 +271,12 @@ private:
     
   WDL_String mINIPath;
   WDL_String mScreenshotPath;
+
+  bool mHasMainWindowBounds = false;
+  int mMainWindowX = 0;
+  int mMainWindowY = 0;
+  int mMainWindowW = 0;
+  int mMainWindowH = 0;
 
   std::vector<uint32_t> mAudioInputDevIDs;
   std::vector<uint32_t> mAudioOutputDevIDs;

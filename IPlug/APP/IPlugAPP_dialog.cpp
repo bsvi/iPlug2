@@ -545,17 +545,25 @@ WDL_DLGRET IPlugAPPHost::PreferencesDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wPar
   return TRUE;
 }
 
-static void ClientResize(HWND hWnd, int width, int height)
+static void ClientResize(HWND hWnd, int width, int height, bool useSavedPos = false, int savedX = 0, int savedY = 0)
 {
   RECT rcClient, rcWindow;
   POINT ptDiff;
   int screenwidth, screenheight;
   int x, y;
 
-  screenwidth  = GetSystemMetrics(SM_CXSCREEN);
-  screenheight = GetSystemMetrics(SM_CYSCREEN);
-  x = (screenwidth / 2) - (width / 2);
-  y = (screenheight / 2) - (height / 2);
+  if (useSavedPos)
+  {
+    x = savedX;
+    y = savedY;
+  }
+  else
+  {
+    screenwidth  = GetSystemMetrics(SM_CXSCREEN);
+    screenheight = GetSystemMetrics(SM_CYSCREEN);
+    x = (screenwidth / 2) - (width / 2);
+    y = (screenheight / 2) - (height / 2);
+  }
 
   GetClientRect(hWnd, &rcClient);
   GetWindowRect(hWnd, &rcWindow);
@@ -578,6 +586,15 @@ WDL_DLGRET IPlugAPPHost::MainDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
       gHWND = hwndDlg;
       IPlugAPP* pPlug = pAppHost->GetPlug();
 
+      int savedX = 0;
+      int savedY = 0;
+      int savedW = 0;
+      int savedH = 0;
+      const bool hasSavedBounds = pAppHost->GetMainWindowBounds(savedX, savedY, savedW, savedH);
+      const bool canRestoreSize = hasSavedBounds && pPlug->GetHostResizeEnabled();
+      const int targetW = canRestoreSize ? savedW : pPlug->GetEditorWidth();
+      const int targetH = canRestoreSize ? savedH : pPlug->GetEditorHeight();
+
 #ifdef OS_LINUX
       // On Linux, show and resize the dialog first so the GTK/X11 window reaches
       // its final size. Then defer OpenWindow via PostMessage so the SWELL main loop
@@ -585,7 +602,7 @@ WDL_DLGRET IPlugAPPHost::MainDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
       // child window is created — otherwise Mutter constrains the child to the
       // dialog's initial (template) size.
       ShowWindow(hwndDlg, SW_SHOW);
-      ClientResize(hwndDlg, pPlug->GetEditorWidth(), pPlug->GetEditorHeight());
+      ClientResize(hwndDlg, targetW, targetH, hasSavedBounds, savedX, savedY);
       PostMessage(hwndDlg, WM_USER_OPENWINDOW, 0, 0);
 #else
       if (!pAppHost->OpenWindow(gHWND))
@@ -593,7 +610,7 @@ WDL_DLGRET IPlugAPPHost::MainDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
         DBGMSG("couldn't attach gui\n");
       }
 
-      ClientResize(hwndDlg, pPlug->GetEditorWidth(), pPlug->GetEditorHeight());
+      ClientResize(hwndDlg, targetW, targetH, hasSavedBounds, savedX, savedY);
 
       ShowWindow(hwndDlg, SW_SHOW);
 #endif
@@ -630,6 +647,8 @@ WDL_DLGRET IPlugAPPHost::MainDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
       break;
     }
     case WM_DESTROY:
+      pAppHost->SaveMainWindowBounds(hwndDlg);
+      pAppHost->UpdateINI();
       pAppHost->CloseWindow();
       gHWND = NULL;
 #ifdef OS_LINUX

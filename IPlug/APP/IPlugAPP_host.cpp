@@ -196,6 +196,15 @@ bool IPlugAPPHost::InitState()
 
       mState.mMidiInChan = GetPrivateProfileInt("midi", "inchan", 0, mINIPath.Get()); // 0 is any
       mState.mMidiOutChan = GetPrivateProfileInt("midi", "outchan", 0, mINIPath.Get()); // 1 is first chan
+
+      mHasMainWindowBounds = GetPrivateProfileInt("window", "has_position", 0, mINIPath.Get()) != 0;
+      mMainWindowX = GetPrivateProfileInt("window", "x", 0, mINIPath.Get());
+      mMainWindowY = GetPrivateProfileInt("window", "y", 0, mINIPath.Get());
+      mMainWindowW = GetPrivateProfileInt("window", "w", 0, mINIPath.Get());
+      mMainWindowH = GetPrivateProfileInt("window", "h", 0, mINIPath.Get());
+
+      if (mMainWindowW <= 0 || mMainWindowH <= 0)
+        mHasMainWindowBounds = false;
     }
 
     // if settings file doesn't exist, populate with default values, otherwise overwrite
@@ -262,6 +271,54 @@ void IPlugAPPHost::UpdateINI()
   WritePrivateProfileString("midi", "inchan", buf, ini);
   sprintf(buf, "%u", mState.mMidiOutChan);
   WritePrivateProfileString("midi", "outchan", buf, ini);
+
+  WritePrivateProfileString("window", "has_position", mHasMainWindowBounds ? "1" : "0", ini);
+
+  if (mHasMainWindowBounds)
+  {
+    sprintf(buf, "%d", mMainWindowX);
+    WritePrivateProfileString("window", "x", buf, ini);
+    sprintf(buf, "%d", mMainWindowY);
+    WritePrivateProfileString("window", "y", buf, ini);
+    sprintf(buf, "%d", mMainWindowW);
+    WritePrivateProfileString("window", "w", buf, ini);
+    sprintf(buf, "%d", mMainWindowH);
+    WritePrivateProfileString("window", "h", buf, ini);
+  }
+}
+
+bool IPlugAPPHost::GetMainWindowBounds(int& x, int& y, int& clientW, int& clientH) const
+{
+  if (!mHasMainWindowBounds || mMainWindowW <= 0 || mMainWindowH <= 0)
+    return false;
+
+  x = mMainWindowX;
+  y = mMainWindowY;
+  clientW = mMainWindowW;
+  clientH = mMainWindowH;
+  return true;
+}
+
+void IPlugAPPHost::SaveMainWindowBounds(HWND hWnd)
+{
+  if (!hWnd)
+    return;
+
+  RECT rcClient = {};
+  RECT rcWindow = {};
+  GetClientRect(hWnd, &rcClient);
+  GetWindowRect(hWnd, &rcWindow);
+
+  const int clientW = rcClient.right - rcClient.left;
+  const int clientH = rcClient.bottom - rcClient.top;
+  if (clientW <= 0 || clientH <= 0)
+    return;
+
+  mMainWindowX = rcWindow.left;
+  mMainWindowY = rcWindow.top;
+  mMainWindowW = clientW;
+  mMainWindowH = clientH;
+  mHasMainWindowBounds = true;
 }
 
 std::string IPlugAPPHost::GetAudioDeviceName(uint32_t deviceID) const
