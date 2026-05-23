@@ -112,7 +112,7 @@ if(NOT TARGET iPlug2::IPlug)
       "-framework CoreServices"
       "-framework Foundation"
     )
-  elseif(UNIX AND NOT APPLE)
+  elseif(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
     # WDL assumes signed char; ARM Linux defaults to unsigned char
     # Force-include stdlib.h before any translation unit: WDL's heapbuf.h uses
     # malloc/free/realloc without including stdlib.h itself, and they aren't

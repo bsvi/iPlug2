@@ -14,6 +14,32 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
 }
 
+/*
+  IGraphics platform popup menu styling. Uncomment and adjust these variables
+  to customize the HTML Popover menu used by web builds.
+
+:root {
+  --iplug-popup-menu-background: #1e1e1e;
+  --iplug-popup-menu-color: #ddd;
+  --iplug-popup-menu-border: 1px solid #555;
+  --iplug-popup-menu-border-radius: 6px;
+  --iplug-popup-menu-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  --iplug-popup-menu-font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --iplug-popup-menu-padding: 4px 0;
+  --iplug-popup-menu-max-height: 70vh;
+  --iplug-popup-menu-hover-background: #3b82f6;
+  --iplug-popup-menu-hover-color: #fff;
+  --iplug-popup-menu-item-padding: 5px 12px;
+  --iplug-popup-menu-disabled-opacity: 0.45;
+  --iplug-popup-menu-min-width: 160px;
+  --iplug-popup-menu-title-padding: 6px 12px 2px;
+  --iplug-popup-menu-title-color: #888;
+  --iplug-popup-menu-title-font-size: 11px;
+  --iplug-popup-menu-separator-margin: 4px 8px;
+  --iplug-popup-menu-separator-color: #444;
+}
+*/
+
 /* Plugin web component container */
 iplug-NAME_PLACEHOLDER_LC {
   display: block;
@@ -93,6 +119,16 @@ iplug-NAME_PLACEHOLDER_LC.resizable {
   background: #666;
 }
 
+.host-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #c7c7c7;
+  font-size: 12px;
+  flex-shrink: 1;
+}
+
 #fullscreenBtn {
   background: #333;
   color: #aaa;
@@ -102,6 +138,21 @@ iplug-NAME_PLACEHOLDER_LC.resizable {
 
 #fullscreenBtn:hover {
   background: #444;
+  color: white;
+}
+
+.live-edit-btn {
+  background: #333;
+  color: #aaa;
+}
+
+.live-edit-btn:hover {
+  background: #444;
+  color: white;
+}
+
+.live-edit-btn.active {
+  background: #3b82f6;
   color: white;
 }
 

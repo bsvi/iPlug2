@@ -84,10 +84,10 @@ if(NOT TARGET iPlug2::WebView)
     else()
       set(WEBVIEW2_LIB_DIR "${WEBVIEW2_DIR}/build/native/x86")
     endif()
-  elseif(UNIX AND NOT APPLE)
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
     set(WEBVIEW_SRC
       ${WEBVIEW_DIR}/IPlugWebViewEditorDelegate.cpp
-      ${WEBVIEW_DIR}/IPlugWebView_linux.cpp
+      ${WEBVIEW_DIR}/IPlugWebView_web.cpp
     )
   endif()
 
@@ -122,7 +122,9 @@ if(NOT TARGET iPlug2::WebView)
       iPlug2::IPlug
       "${WEBVIEW2_LIB_DIR}/WebView2LoaderStatic.lib"
     )
-  elseif(UNIX AND NOT APPLE)
-    target_link_libraries(iPlug2::WebView INTERFACE iPlug2::IPlug)
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+    target_link_libraries(iPlug2::WebView INTERFACE
+      iPlug2::IPlug
+    )
   endif()
 endif()

@@ -42,7 +42,7 @@ if(NOT TARGET iPlug2::IGraphics)
       ${IGRAPHICS_DIR}/Platforms/IGraphicsMac_view.mm
       ${IGRAPHICS_DIR}/Platforms/IGraphicsCoreText.mm
     )
-  elseif(UNIX AND NOT APPLE)
+  elseif(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
     list(APPEND IGRAPHICS_SRC ${IGRAPHICS_DIR}/Platforms/IGraphicsLinux.cpp)
   endif()
 
@@ -79,7 +79,7 @@ if(NOT TARGET iPlug2::IGraphics)
       "-framework Accelerate"
       "-framework QuartzCore"
     )
-  elseif(UNIX AND NOT APPLE)
+  elseif(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
     find_package(X11 REQUIRED)
     find_package(OpenGL REQUIRED)
     target_include_directories(iPlug2::IGraphics INTERFACE

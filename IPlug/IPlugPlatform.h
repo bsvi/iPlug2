@@ -33,7 +33,7 @@
   #ifndef OS_LINUX
     #define OS_LINUX
   #endif
-#elif defined EMSCRIPTEN
+#elif defined __EMSCRIPTEN__
   #define OS_WEB
 #else
   #error "No OS defined!"
