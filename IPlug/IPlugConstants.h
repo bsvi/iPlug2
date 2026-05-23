@@ -121,7 +121,7 @@ static const int MAX_PARAM_DISPLAY_PRECISION = 6;
 
 // All version ints are stored as 0xVVVVRRMM: V = version, R = revision, M = minor revision.
 #define IPLUG_VERSION 0x010000
-#define IPLUG_VERSION_MAGIC 'pfft'
+#define IPLUG_VERSION_MAGIC 0x70666674 // 'pfft'
 
 static const int DEFAULT_BLOCK_SIZE = 1024;
 static const double DEFAULT_TEMPO = 120.0;
